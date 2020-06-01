@@ -1,6 +1,8 @@
 from django.db import models
 from openhumans.models import OpenHumansMember
 
+from reports.models import ReportSetup
+
 
 class Account(models.Model):
     """
@@ -10,3 +12,6 @@ class Account(models.Model):
 
     member = models.OneToOneField(OpenHumansMember, on_delete=models.CASCADE)
     publish_symptom_reports = models.BooleanField(default=False)
+    report_setup = models.ForeignKey(
+        ReportSetup, default=1, on_delete=models.SET_DEFAULT
+    )
