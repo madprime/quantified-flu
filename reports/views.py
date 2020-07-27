@@ -21,7 +21,6 @@ from retrospective.tasks import add_wearable_to_symptom
 
 from .forms import SymptomReportForm
 from .models import (
-    CATEGORIZED_SYMPTOM_CHOICES,
     SYMPTOM_INTENSITY_CHOICES,
     SymptomReport,
     ReportToken,
@@ -67,11 +66,20 @@ class ReportSymptomsView(CheckTokenMixin, CreateView):
     template_name = "reports/symptoms.html"
     success_url = reverse_lazy("reports:list")
 
+    def get_form_kwargs(self):
+        """Override to add 'account' when initializing form"""
+        kwargs = super().get_form_kwargs()
+        kwargs["account"] = self.request.user.openhumansmember.account
+        return kwargs
+
+    def get_categorized_symptom_choices(self):
+        return self.request.user.openhumansmember.account.report_setup.display_format()
+
     def get_context_data(self, *args, **kwargs):
         context = super().get_context_data(*args, **kwargs)
         context.update(
             {
-                "form_categorized_symptom_choices": CATEGORIZED_SYMPTOM_CHOICES,
+                "form_categorized_symptom_choices": self.get_categorized_symptom_choices(),
                 "form_symptom_intensity_choices": SYMPTOM_INTENSITY_CHOICES,
             }
         )

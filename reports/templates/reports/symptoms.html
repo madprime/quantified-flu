@@ -48,22 +48,24 @@ input[type=radio]{
   </div>
 
   {# symptom categories #}
-  {% for category, symptom_list in form_categorized_symptom_choices.items %}
+  {% for set in form_categorized_symptom_choices %}
     <div class="d-flex flex-row justify-content-start mt-2" style="color: #999999;; border-bottom:1px solid #ddd">
-      {{ category }}
+      {{ set.category.name }}
     </div>
-    {% for symptom in symptom_list %}
+    {% for symptom_item in set.symptoms %}
       <div class="d-flex flex-row align-items-center">
         {# stores the current symptom field value as "field_value" for later use in the template #}
-        {% get_formfield_value symptom %}
+        {% with symptom_item.symptom.label as form_field %}
+        {% get_formfield_value %}
         <div class="d-flex-inline py-2 pl-2" style="width:25%; line-height:1.0; font-size:95%;>
-          <label for="id_{{ symptom.0 }}">{{ symptom.1 }}</label>
+          <label for="id_{{ symptom_item.symptom.label }}">{{ symptom_item.symptom.verbose }}</label>
         </div>
         <div class="d-flex-inline px-4 pt-2" style="width:75%;">
           <div class="d-flex-inline">
-            <input type="range" class="custom-range" name="{{ symptom.0 }}" value="{{ field_value }}" min="0" max="4" id="id_{{ symptom.0 }}">
+            <input type="range" class="custom-range" name="{{ symptom_item.symptom.label }}" value="{{ form_field_value }}" min="0" max="4" id="id_{{ symptom_item.symptom.label }}">
           </div>
         </div>
+        {% endwith %}
       </div>
     {% endfor %}
   {% endfor %}

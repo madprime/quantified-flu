@@ -13,40 +13,6 @@ from django.utils.timezone import now
 
 from openhumans.models import OpenHumansMember
 
-# List adapted from common surveys.
-CATEGORIZED_SYMPTOM_CHOICES = OrderedDict(
-    [
-        (
-            "Respiratory",
-            [
-                ("cough", "Cough"),
-                ("wet_cough", "Cough with mucus (phlegm)"),
-                ("anosmia", "Reduced sense of smell (anosmia)"),
-                ("runny_nose", "Runny or stuffy nose"),
-                ("sore_throat", "Sore throat"),
-                ("short_breath", "Shortness of breath"),
-            ],
-        ),
-        (
-            "Gastrointestinal",
-            [("diarrhea", "Diarrhea"), ("nausea", "Nausea or vomiting")],
-        ),
-        (
-            "Systemic",
-            [
-                ("chills", "Chills and sweats"),
-                ("fatigue", "Fatigue and malaise"),
-                ("headache", "Headache"),
-                ("body_ache", "Muscle pains and body aches"),
-            ],
-        ),
-    ]
-)
-
-SYMPTOM_CHOICES = []
-for category in CATEGORIZED_SYMPTOM_CHOICES:
-    SYMPTOM_CHOICES = SYMPTOM_CHOICES + CATEGORIZED_SYMPTOM_CHOICES[category]
-
 
 SYMPTOM_INTENSITY_CHOICES = [
     (0, "None"),
@@ -100,9 +66,32 @@ class ReportToken(models.Model):
         return None
 
 
+class SymptomCategory(models.Model):
+    name = models.CharField(max_length=20, unique=True)
+
+    def __str__(self):
+        return self.name
+
+    def __unicode__(self):
+        return self.name
+
+
 class Symptom(models.Model):
-    label = models.CharField(max_length=20, choices=SYMPTOM_CHOICES, unique=True)
+    """
+    Symptoms have "universal" meanings that are expected to remain stable.
+
+    Each Symptom may optionally belong to a SymptomCategory.
+
+    A Symptom marked as "standard" is made available to all users.
+    """
+
+    label = models.CharField(max_length=20, unique=True)
     verbose = models.CharField(max_length=40, blank=True)
+    category = models.ForeignKey(SymptomCategory, on_delete=models.PROTECT, null=True)
+    available = models.BooleanField(default=False)
+    owner = models.ForeignKey(
+        "quantified_flu.account", on_delete=models.SET_NULL, null=True
+    )
 
     def __str__(self):
         return self.label
@@ -149,7 +138,7 @@ class ReportDisplayMixin(object):
         formatted = []
         symptom_items = self.get_symptom_items()
         sorted_categories = self.sort_category_items(
-            categoryitem_queryset=self.get_category_items(),
+            categoryitem_queryset=self.get_categories(),
             category_ordering=self.category_ordering,
         )
 
@@ -158,7 +147,7 @@ class ReportDisplayMixin(object):
                 {
                     "category": category,
                     "symptoms": self.order_by_symptoms(
-                        symptom_items.filter(category=category)
+                        symptom_items.filter(symptom__category=category)
                     ),
                 }
             )
@@ -166,7 +155,9 @@ class ReportDisplayMixin(object):
         formatted.append(
             {
                 "category": None,
-                "symptoms": self.order_by_symptoms(symptom_items.filter(category=None)),
+                "symptoms": self.order_by_symptoms(
+                    symptom_items.filter(symptom__category=None)
+                ),
             }
         )
 
@@ -178,51 +169,39 @@ class ReportSetup(ReportDisplayMixin, models.Model):
     The template set of symptoms and categories used for symptom reporting.
 
     These are arranged as:
-      1. a set of categories (ReportSetupCategoryItems)
+      1. a category ordering (SymptomCategory ids)
       2. a set of symptoms (ReportSetupSymptomItems)
 
     Symptoms may be re-used in other ReportSetups (Symptom objects).
 
-    Categories are specific to the report setup (there's no generic "Category"
-    object.) Categories exist for display purposes: they can be ordered, and
-    symptoms within a category are typically ordered alphabetically according
-    to their verbose label, e.g. as done in display_format().
-
-    A category (ReportSetupCategoryItem) can have symptoms (ReportSetupSymptomItems)
-    corresponding to it. Or it could have none (an "empty" category).
-
-    A symptom in the setup (ReportSetupSymptomItem) may have a category, or may be
-    unassigned (e.g. displayed later as "Uncategorized symptoms").
+    A symptom in the setup (ReportSetupSymptomItem) may have a category, or
+    may be unassigned (e.g. displayed later as "Uncategorized symptoms").
     """
 
     title = models.CharField(max_length=30)
     category_ordering = models.TextField(
         validators=[validate_comma_separated_integer_list], blank=True
     )
+    owner = models.ForeignKey(
+        "quantified_flu.account", on_delete=models.SET_NULL, null=True
+    )
 
     def __str__(self):
         return "{} ({})".format(self.title, self.id)
 
-    def get_category_items(self):
-        return self.reportsetupcategoryitem_set
+    def get_categories(self):
+        return SymptomCategory.objects.filter(
+            symptom__in=Symptom.objects.filter(
+                reportsetupsymptomitem__in=self.get_symptom_items()
+            )
+        ).distinct()
 
     def get_symptom_items(self):
-        return self.reportsetupsymptomitem_set
-
-
-class ReportSetupCategoryItem(models.Model):
-    report_setup = models.ForeignKey(ReportSetup, on_delete=models.CASCADE)
-    name = models.CharField(max_length=20)
-
-    def __str__(self):
-        return "{} ({})".format(self.name, self.id)
+        return self.reportsetupsymptomitem_set.all()
 
 
 class ReportSetupSymptomItem(models.Model):
     report_setup = models.ForeignKey(ReportSetup, on_delete=models.CASCADE)
-    category = models.ForeignKey(
-        ReportSetupCategoryItem, on_delete=models.SET_NULL, null=True
-    )
     symptom = models.ForeignKey(Symptom, on_delete=models.PROTECT)
 
     def __str__(self):
@@ -283,11 +262,15 @@ class SymptomReport(ReportDisplayMixin, models.Model):
             for s in self.symptomreportsymptomitem_set.all()
         }
 
-    def get_category_items(self):
-        return self.symptomreportcategoryitem_set
+    def get_categories(self):
+        return SymptomCategory.objects.filter(
+            symptom__in=Symptom.objects.filter(
+                symptomreportsymptomitem__in=self.get_symptom_items()
+            )
+        ).distinct()
 
     def get_symptom_items(self):
-        return self.symptomreportsymptomitem_set
+        return self.symptomreportsymptomitem_set.all()
 
     @property
     def severity(self):
@@ -324,18 +307,6 @@ class SymptomReport(ReportDisplayMixin, models.Model):
         return json.dumps(data)
 
 
-class SymptomReportCategoryItem(models.Model):
-    """
-    The ReportSetupCategoryItem information at the time of reporting.
-    """
-
-    name = models.CharField(max_length=20)
-    report = models.ForeignKey(SymptomReport, on_delete=models.CASCADE)
-
-    def __str__(self):
-        return "{} ({})".format(self.name, self.id)
-
-
 class SymptomReportSymptomItem(models.Model):
     """
     A specific Symptom recorded in a given report.
@@ -344,9 +315,6 @@ class SymptomReportSymptomItem(models.Model):
     symptom = models.ForeignKey(Symptom, on_delete=models.PROTECT)
     report = models.ForeignKey(SymptomReport, on_delete=models.CASCADE)
     intensity = models.IntegerField(choices=SYMPTOM_INTENSITY_CHOICES, default=0)
-    category = models.ForeignKey(
-        SymptomReportCategoryItem, on_delete=models.SET_NULL, null=True
-    )
 
     def __str__(self):
         return "{} ({})".format(self.symptom.label, self.id)

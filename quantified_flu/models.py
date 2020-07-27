@@ -12,6 +12,6 @@ class Account(models.Model):
 
     member = models.OneToOneField(OpenHumansMember, on_delete=models.CASCADE)
     publish_symptom_reports = models.BooleanField(default=False)
-    report_setup = models.ForeignKey(
+    report_setup = models.OneToOneField(
         ReportSetup, default=1, on_delete=models.SET_DEFAULT
     )

@@ -4,7 +4,6 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from .models import (
-    SYMPTOM_CHOICES,
     SYMPTOM_INTENSITY_CHOICES,
     Symptom,
     SymptomReport,
@@ -24,15 +23,17 @@ class SymptomReportForm(forms.ModelForm):
         """
         Add fields to the form for each potential symptom.
 
-        This reorders to place the symptom list first, in the order of SYMPTOM_CHOICES.
+        This reorders to place the symptom list first, as provided by ReportSetup.
         The value is initialized to 0 if none is provided.
         """
+        self.account = kwargs.pop("account")
         returned = super().__init__(*args, **kwargs)
         new_fields = OrderedDict()
-        for symptom in SYMPTOM_CHOICES:
-            if symptom[0] not in self.initial:
-                self.initial[symptom[0]] = 0
-            new_fields[symptom[0]] = forms.IntegerField(
+        for symptom_item in self.account.report_setup.get_symptom_items():
+            symptom_label = symptom_item.symptom.label
+            if symptom_label not in self.initial:
+                self.initial[symptom_label] = 0
+            new_fields[symptom_label] = forms.IntegerField(
                 required=False,
                 min_value=min([x[0] for x in SYMPTOM_INTENSITY_CHOICES]),
                 max_value=max([x[0] for x in SYMPTOM_INTENSITY_CHOICES]),
@@ -48,13 +49,11 @@ class SymptomReportForm(forms.ModelForm):
         Creates a Symptom and SymptomReportSymptomItem objects if not already present.
         """
         new_report = super().save()
-        for symptom_choice in SYMPTOM_CHOICES:
-            value = self.cleaned_data[symptom_choice[0]]
-            symptom, _ = Symptom.objects.get_or_create(
-                label=symptom_choice[0], defaults={"available": True}
-            )
+        for symptom_item in self.account.report_setup.get_symptom_items():
+            symptom_label = symptom_item.symptom.label
+            value = self.cleaned_data[symptom_label]
             symptom_item, _ = SymptomReportSymptomItem.objects.get_or_create(
-                report=new_report, symptom=symptom
+                report=new_report, symptom=symptom_item.symptom
             )
             symptom_item.intensity = value
             symptom_item.save()

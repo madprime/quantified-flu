@@ -22,22 +22,18 @@ def get_formfield_value(parser, token):
 
     This enables programmatically handling HTML for form fields in the template.
     """
-    try:
-        tag_name, variable_name = token.split_contents()
-    except ValueError:
-        raise template.TemplateSyntaxError(
-            "%r tag requires a single argument" % token.contents.split()[0]
-        )
-    return FormFieldValueNode(variable_name)
+    return FormFieldValueNode()
 
 
 class FormFieldValueNode(template.Node):
-    def __init__(self, variable_name, **kwargs):
-        self.variable_name = variable_name
-
     def render(self, context):
+        # get from template context the value of the "form_field" variable
+        field_name = context["form_field"]
+
+        # get the form from template context, look up this value
         form = context["form"]
-        field_name = context[self.variable_name][0]
         field_value = form[field_name].value()
-        context["field_value"] = field_value
+
+        # set the template context "field_value" to this
+        context["form_field_value"] = field_value
         return ""
