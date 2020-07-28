@@ -107,10 +107,13 @@ class ReportNoSymptomsView(CheckTokenMixin, RedirectView):
 
     def get(self, request, *args, **kwargs):
         """Loading with valid token immediately creates a no-symptom report."""
+        report_setup = request.user.openhumansmember.account.report_setup
         report = SymptomReport(
             report_none=True, token=self.token, member=request.user.openhumansmember
         )
         report.save()
+        for symptom_item in report_setup.get_symptom_items():
+            SymptomReportSymptomItem.create(report=report, symptom=symptom_item.symptom)
         add_wearable_to_symptom.delay(report.member.oh_id)
         messages.add_message(request, messages.SUCCESS, "No symptom report saved!")
         return super().get(request, *args, **kwargs)
