@@ -3,7 +3,10 @@ from collections import OrderedDict
 from django import forms
 from django.core.exceptions import ValidationError
 
+from quantified_flu.models import Account
+
 from .models import (
+    ReportSetup,
     SYMPTOM_INTENSITY_CHOICES,
     Symptom,
     SymptomReport,
@@ -58,6 +61,20 @@ class SymptomReportForm(forms.ModelForm):
             symptom_item.intensity = value
             symptom_item.save()
         return new_report
+
+
+class SelectReportSetupForm(forms.ModelForm):
+    class Meta:
+        model = Account
+        fields = ["report_setup"]
+        widgets = {"report_setup": forms.RadioSelect}
+
+    def __init__(self, *args, **kwargs):
+        self.account = kwargs.pop("account")
+        super().__init__(*args, **kwargs)
+        self.fields["report_setup"].queryset = ReportSetup.get_available(
+            account=self.account
+        )
 
 
 """

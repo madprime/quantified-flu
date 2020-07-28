@@ -7,7 +7,7 @@ import secrets
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_comma_separated_integer_list
 from django.db import models
-from django.db.models import F
+from django.db.models import Count, F, Q
 from django.forms.widgets import CheckboxSelectMultiple
 from django.utils.timezone import now
 
@@ -134,7 +134,11 @@ class ReportDisplayMixin(object):
             sorted_categories.append(categories[key])
         return sorted_categories
 
+    @property
     def display_format(self):
+        return self.get_display_format()
+
+    def get_display_format(self):
         formatted = []
         symptom_items = self.get_symptom_items()
         sorted_categories = self.sort_category_items(
@@ -185,9 +189,21 @@ class ReportSetup(ReportDisplayMixin, models.Model):
     owner = models.ForeignKey(
         "quantified_flu.account", on_delete=models.SET_NULL, null=True
     )
+    description = models.TextField(blank=True)
+    public = models.BooleanField(default=False)
 
     def __str__(self):
         return "{} ({})".format(self.title, self.id)
+
+    @classmethod
+    def get_available(cls, account=None):
+        if account:
+            qs = cls.objects.filter(
+                Q(account=account) | Q(owner=account) | Q(public=True)
+            )
+        else:
+            qs = cls.objects.filter(public=True)
+        return qs.annotate(use_count=Count("account")).order_by("-use_count")
 
     def get_categories(self):
         return SymptomCategory.objects.filter(

@@ -1,0 +1,37 @@
+<div class="card">
+  <div class="card-header" id="report_setup_selection_{{report_setups.current.id}}">
+    <div class="custom-control custom-radio">
+      <input class="form-check-input" type="radio" name="report_setup"
+        id="id_report_setup_{{ report_setup.id }}"
+        value="{{ report_setup.id }}"{% if checked %} checked{% endif %}>
+      <label class="form-check-label" for="id_report_setup_{{ report_setup.id }}">
+        {{ report_setup.title }}
+      </label>
+      <button class="btn btn-link collapsed" type="button" data-toggle="collapse"
+          data-target="#collapse_report_setup_{{ report_setup.id }}"
+          aria-expanded="false"
+          aria-controls="collapse_report_setup_{{ report_setup.id }}">
+        See details
+      </button>
+    </div>
+  </div>
+  <div id="collapse_report_setup_{{ report_setup.id }}"
+      class="collapse"
+      aria-labelledby="report_setup_selection_{{report_setups.current.id}}"
+      data-parent="#report_setup_accordion">
+    <div class="card-body">
+      <p>
+        <b>Description: </b> {{ report_setup.description }}
+      </p>
+      <hr>
+      {% for section in report_setup.display_format %}
+      {% if section.symptoms %}
+      <p>
+        <b>{{section.category}}:</b>
+        {% for symptom_item in section.symptoms %}{{ symptom_item.symptom.label }}{% if not forloop.last %}, {% endif %}{% endfor %}
+      </p>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>

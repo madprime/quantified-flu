@@ -5,6 +5,8 @@ from .views import (
     ReportNoSymptomsView,
     ReportSymptomsView,
     PublicReportsLinkView,
+    # Customize reports
+    ReportSetupView,
 )  # TODO: add ReportDiagnosisView
 
 
@@ -33,4 +35,5 @@ urlpatterns = [
     path(
         "public.json", PublicReportsLinkView.as_view(as_json=True), name="public_json"
     ),
+    path("setup", ReportSetupView.as_view(), name="report-setup"),
 ]

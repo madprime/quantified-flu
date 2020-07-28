@@ -5,12 +5,14 @@ import pytz
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login, logout
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
+from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import render, redirect, reverse
 from django.urls import reverse_lazy
 from django.utils.timezone import now
-from django.views.generic import CreateView, ListView, RedirectView
+from django.views.generic import CreateView, ListView, RedirectView, UpdateView
 
 from openhumans.models import OpenHumansMember
 
@@ -19,10 +21,11 @@ from quantified_flu.helpers import update_openhumans_reportslist
 from quantified_flu.models import Account
 from retrospective.tasks import add_wearable_to_symptom
 
-from .forms import SymptomReportForm
+from .forms import SelectReportSetupForm, SymptomReportForm
 from .models import (
     SYMPTOM_INTENSITY_CHOICES,
     SymptomReport,
+    ReportSetup,
     ReportToken,
 )  # TODO: add DiagnosisReport
 
@@ -73,7 +76,9 @@ class ReportSymptomsView(CheckTokenMixin, CreateView):
         return kwargs
 
     def get_categorized_symptom_choices(self):
-        return self.request.user.openhumansmember.account.report_setup.display_format()
+        return (
+            self.request.user.openhumansmember.account.report_setup.get_display_format()
+        )
 
     def get_context_data(self, *args, **kwargs):
         context = super().get_context_data(*args, **kwargs)
@@ -250,6 +255,46 @@ class PublicReportsLinkView(ListView):
             ]
             return HttpResponse(json.dumps(data), content_type="application/json")
         return super().get(request, *args, **kwargs)
+
+
+class ReportSetupView(LoginRequiredMixin, UpdateView):
+    template_name = "reports/setup.html"
+    login_url = "/"
+    model = Account
+    form_class = SelectReportSetupForm
+    success_url = reverse_lazy("manage-account")
+
+    def get_object(self):
+        self.account = self.request.user.openhumansmember.account
+        return self.account
+
+    def get_form_kwargs(self):
+        """Override to add 'account' when initializing form"""
+        kwargs = super().get_form_kwargs()
+        kwargs["account"] = self.account
+        return kwargs
+
+    def get_context_data(self, *args, **kwargs):
+        """
+        Override to create custom order for list of setups.
+        """
+        context = super().get_context_data(*args, **kwargs)
+        setup_qs = context["form"].fields["report_setup"]._queryset
+        setups = {}
+        try:
+            setups["current"] = setup_qs.get(id=self.account.report_setup.id)
+        except ReportSetup.DoesNotExist:
+            pass
+        setups["own"] = setup_qs.filter(owner=self.account).exclude(
+            id=self.account.report_setup.id
+        )
+        setups["public"] = (
+            setup_qs.filter(public=True)
+            .exclude(id=self.account.report_setup.id)
+            .exclude(id__in=setups["own"])
+        )
+        context["report_setups"] = setups
+        return context
 
 
 """

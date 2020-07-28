@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block main %}
+{{ form.errors }}
+<form method="POST" action="{% url 'reports:report-setup' %}">
+  {% csrf_token %}
+
+  <div class="accordion" id="report_setup_accordion">
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="mb-0">
+          Current survey setup
+        </h2>
+      </div>
+    </div>
+    {% with report_setups.current as report_setup %}
+    {% include 'reports/partials/setup_details.html' with checked=True %}
+    {% endwith %}
+  </div>
+
+  {% if report_setups.own %}
+    <div class="card">
+      <div class="card-header">
+        <h2 class="mb-0">
+          Your setups
+        </h2>
+      </div>
+    </div>
+    {% for report_setup in report_setups.own %}
+      {% include 'reports/partials/setup_details.html' %}
+    {% endfor %}
+  {% endif %}
+
+  {% if report_setups.public %}
+    <div class="card">
+      <div class="card-header">
+        <h2 class="mb-0">
+          Other available setups
+        </h2>
+      </div>
+    </div>
+    {% for report_setup in report_setups.public %}
+      {% include 'reports/partials/setup_details.html' %}
+    {% endfor %}
+  {% endif %}
+
+  <input type="submit" value="Select report setup">
+</form>
+{% endblock main %}
