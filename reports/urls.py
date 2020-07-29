@@ -7,6 +7,10 @@ from .views import (
     PublicReportsLinkView,
     # Customize reports
     ReportSetupView,
+    create_custom_setup,
+    DeleteReportSetupView,
+    UpdateReportSetupView,
+    DeleteReportSetupSymptomView,
 )  # TODO: add ReportDiagnosisView
 
 
@@ -36,4 +40,20 @@ urlpatterns = [
         "public.json", PublicReportsLinkView.as_view(as_json=True), name="public_json"
     ),
     path("setup", ReportSetupView.as_view(), name="report-setup"),
+    path("create-custom-setup", create_custom_setup, name="create-custom-setup"),
+    path(
+        "delete-setup/<setup_id>", DeleteReportSetupView.as_view(), name="delete-setup"
+    ),
+    path(
+        "update-setup/<setup_id>", UpdateReportSetupView.as_view(), name="update-setup"
+    ),
+    path(
+        "delete-setup-symptom/<symptom_item_id>",
+        DeleteReportSetupSymptomView.as_view(),
+        name="delete-setup-symptom",
+    ),
+    path(
+        "ajax/delete-setup-symptom/<symptom_item_id>",
+        DeleteReportSetupSymptomView.as_view(as_json=True),
+    ),
 ]

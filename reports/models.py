@@ -180,9 +180,13 @@ class ReportSetup(ReportDisplayMixin, models.Model):
 
     A symptom in the setup (ReportSetupSymptomItem) may have a category, or
     may be unassigned (e.g. displayed later as "Uncategorized symptoms").
+
+    ReportSetups are created as soon as a user initiates customization,
+    to enable associated symptomitems, but are not visible for use until
+    "saved".
     """
 
-    title = models.CharField(max_length=30)
+    title = models.CharField(max_length=30, unique=True)
     category_ordering = models.TextField(
         validators=[validate_comma_separated_integer_list], blank=True
     )
@@ -197,6 +201,12 @@ class ReportSetup(ReportDisplayMixin, models.Model):
 
     @classmethod
     def get_available(cls, account=None):
+        """
+        Return queryset containing ReportSetups available to this user.
+
+        ReportSetups are available if they are "public", "owned" by the user,
+        or already in user by the user (e.g. previously public).
+        """
         if account:
             qs = cls.objects.filter(
                 Q(account=account) | Q(owner=account) | Q(public=True)

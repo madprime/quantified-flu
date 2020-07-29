@@ -77,6 +77,17 @@ class SelectReportSetupForm(forms.ModelForm):
         )
 
 
+class ReportSetupForm(forms.ModelForm):
+    category_ordering = forms.CharField()
+
+    class Meta:
+        model = ReportSetup
+        fields = ["title", "description"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
 """
 TODO: Implement reporting of diagnostic testing.
 class DiagnosisReportForm(forms.ModelForm):

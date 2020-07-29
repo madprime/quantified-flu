@@ -5,14 +5,21 @@ import pytz
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login, logout
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count
-from django.http import HttpResponse
+from django.db.models import Count, ProtectedError
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, reverse
 from django.urls import reverse_lazy
 from django.utils.timezone import now
-from django.views.generic import CreateView, ListView, RedirectView, UpdateView
+from django.views.generic import (
+    CreateView,
+    DeleteView,
+    ListView,
+    RedirectView,
+    UpdateView,
+)
 
 from openhumans.models import OpenHumansMember
 
@@ -21,11 +28,13 @@ from quantified_flu.helpers import update_openhumans_reportslist
 from quantified_flu.models import Account
 from retrospective.tasks import add_wearable_to_symptom
 
-from .forms import SelectReportSetupForm, SymptomReportForm
+from .forms import SelectReportSetupForm, SymptomReportForm, ReportSetupForm
 from .models import (
     SYMPTOM_INTENSITY_CHOICES,
+    SymptomCategory,
     SymptomReport,
     ReportSetup,
+    ReportSetupSymptomItem,
     ReportToken,
 )  # TODO: add DiagnosisReport
 
@@ -265,7 +274,7 @@ class ReportSetupView(LoginRequiredMixin, UpdateView):
     login_url = "/"
     model = Account
     form_class = SelectReportSetupForm
-    success_url = reverse_lazy("manage-account")
+    success_url = reverse_lazy("reports:report-setup")
 
     def get_object(self):
         self.account = self.request.user.openhumansmember.account
@@ -298,6 +307,109 @@ class ReportSetupView(LoginRequiredMixin, UpdateView):
         )
         context["report_setups"] = setups
         return context
+
+
+@login_required(login_url="/")
+def create_custom_setup(request):
+    """
+    No-template view to handle copying a setup and passing a user to the edit view.
+    """
+    if request.method == "POST":
+        account = request.user.openhumansmember.account
+
+        # Create copy for customization.
+        copy_id = int(request.POST.get("from_setup"))
+        try:
+            copy_setup = ReportSetup.get_available(account=account).get(id=copy_id)
+        except ReportSetup.DoesNotExist:
+            error_msg = "Error in loading report setup for customization."
+            messages.add_message(request, messages.ERROR, error_msg)
+            return redirect("/")
+
+        new_setup = ReportSetup.objects.create(
+            title="Copy of {}".format(copy_setup.title),
+            owner=account,
+            category_ordering=copy_setup.category_ordering,
+        )
+        for symptom_item in copy_setup.reportsetupsymptomitem_set.all():
+            ReportSetupSymptomItem.objects.create(
+                report_setup=new_setup, symptom=symptom_item.symptom
+            )
+
+        return redirect(reverse("reports:update-setup", args=(new_setup.id,)))
+
+
+class DeleteReportSetupView(LoginRequiredMixin, DeleteView):
+    login_url = "/"
+    model = ReportSetup
+    pk_url_kwarg = "setup_id"
+    success_url = reverse_lazy("reports:report-setup")
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if request.user.openhumansmember.account == self.object.owner:
+            try:
+                return super().delete(request, *args, **kwargs)
+            except ProtectedError:
+                error_msg = "Can't delete report setup in use by one or more users!"
+                messages.add_message(request, messages.ERROR, error_msg)
+                return HttpResponseRedirect(self.get_success_url())
+        else:
+            raise PermissionDenied
+
+
+class DeleteReportSetupSymptomView(LoginRequiredMixin, DeleteView):
+    login_url = "/"
+    model = ReportSetupSymptomItem
+    pk_url_kwarg = "symptom_item_id"
+    as_json = False
+
+    def get_queryset(self):
+        return ReportSetupSymptomItem.objects.filter(
+            report_setup__owner=self.request.user.openhumansmember.account
+        )
+
+    def delete(self, request, *args, **kwargs):
+        self.request = request
+        self.object = self.get_object()
+
+        category = self.object.symptom.category if self.as_json else None
+        setup = self.object.report_setup if self.as_json else None
+
+        default_return = super().delete(self, request, *args, **kwargs)
+        if self.as_json:
+            del_cat = None
+            if not setup.reportsetupsymptomitem_set.filter(
+                symptom__category=category
+            ).exists():
+                del_cat = category.name
+            return JsonResponse({"delete_category": del_cat})
+
+        return default_return
+
+    def get_success_url(self):
+        return reverse("reports:update-setup", args=(self.object.report_setup.id,))
+
+
+class UpdateReportSetupView(LoginRequiredMixin, UpdateView):
+    template_name = "reports/custom_setup.html"
+    login_url = "/"
+    model = ReportSetup
+    pk_url_kwarg = "setup_id"
+    form_class = ReportSetupForm
+    success_url = reverse_lazy("reports:report-setup")
+
+    def get_initial(self):
+        initial = super().get_initial()
+        allowed_categories = self.object.get_categories()
+        cat_names = []
+        for cat_id in self.object.category_ordering.split(","):
+            try:
+                cat_names.append(allowed_categories.get(id=cat_id).name)
+            except SymptomCategory.DoesNotExist:
+                continue
+        initial["category_ordering"] = ",".join(cat_names)
+        return initial
 
 
 """

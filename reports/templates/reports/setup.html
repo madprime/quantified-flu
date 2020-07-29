@@ -2,49 +2,83 @@
 
 {% block main %}
 {{ form.errors }}
-<form method="POST" action="{% url 'reports:report-setup' %}">
+<style>
+.accordion-toggle:before {
+  /* symbol for "opening" panels */
+  content: "⌄";    /* adjust as needed, taken from bootstrap.css */
+  float: left;        /* adjust as needed */
+  color: black;         /* adjust as needed */
+  margin-right: 10px;
+}
+.accordion-toggle.collapsed:before {
+  /* symbol for "collapsed" panels */
+  content: "›";    /* adjust as needed, taken from bootstrap.css */
+}
+</style>
+
+<form id="form-select-setup" method="POST" action="{% url 'reports:report-setup' %}">
   {% csrf_token %}
+</form>
 
-  <div class="accordion" id="report_setup_accordion">
-
-    <div class="card">
-      <div class="card-header">
-        <h2 class="mb-0">
-          Current survey setup
-        </h2>
-      </div>
+<div class="accordion" id="report_setup_accordion">
+  <div class="card">
+    <div class="card-header">
+      <h2 class="mb-0">
+        Current survey setup
+      </h2>
     </div>
-    {% with report_setups.current as report_setup %}
-    {% include 'reports/partials/setup_details.html' with checked=True %}
-    {% endwith %}
   </div>
+  {% with report_setups.current as report_setup %}
+  {% include 'reports/partials/setup_details.html' with current=True %}
+  {% endwith %}
 
   {% if report_setups.own %}
-    <div class="card">
-      <div class="card-header">
-        <h2 class="mb-0">
-          Your setups
-        </h2>
-      </div>
+  <div class="card">
+    <div class="card-header">
+      <h2 class="mb-0">
+        Your setups
+      </h2>
     </div>
-    {% for report_setup in report_setups.own %}
-      {% include 'reports/partials/setup_details.html' %}
-    {% endfor %}
+  </div>
+  {% for report_setup in report_setups.own %}
+    {% include 'reports/partials/setup_details.html' %}
+  {% endfor %}
   {% endif %}
 
   {% if report_setups.public %}
-    <div class="card">
-      <div class="card-header">
-        <h2 class="mb-0">
-          Other available setups
-        </h2>
-      </div>
+  <div class="card">
+    <div class="card-header">
+      <h2 class="mb-0">
+        Other available setups
+      </h2>
     </div>
-    {% for report_setup in report_setups.public %}
-      {% include 'reports/partials/setup_details.html' %}
-    {% endfor %}
+  </div>
+  {% for report_setup in report_setups.public %}
+    {% include 'reports/partials/setup_details.html' %}
+  {% endfor %}
   {% endif %}
+</div>
 
-  <input type="submit" value="Select report setup">
+<h3 class="mt-4">Create a custom setup</h3>
+<p>
+  Would you like to customize an existing setup? Select an available
+  setup to customize it for your own needs.
+</p>
+
+<form class="form" style="display:inline-block" method="POST"
+    action="{% url 'reports:create-custom-setup' %}">
+  {% csrf_token %}
+  <input type="hidden" name="from_setup" value="{{ report_setup.id }}">
+  <select name="from_setup" class="form-control form-control-sm">
+    <option value="{{ report_setups.current.id }}">{{ report_setups.current.title }} (current setup)</option>
+    {% for report_setup in report_setups.own %}
+    <option value="{{ report_setup.id }}">{{ report_setup.title }} (created by you)</option>
+    {% endfor %}
+    {% for report_setup in report_setups.public %}
+    <option value="{{ report_setup.id }}">{{ report_setup.title }}</option>
+    {% endfor %}
+  </select>
+  <input class="btn btn-primary btn-sm mt-2" type="submit" value="Copy and customize">
 </form>
+
 {% endblock main %}
