@@ -1,7 +1,9 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block main %}
-{{ form.errors }}
+<script src="{% static 'js/select_report_setup.js' %}" ></script>
+
 <style>
 .accordion-toggle:before {
   /* symbol for "opening" panels */
@@ -20,43 +22,96 @@
   {% csrf_token %}
 </form>
 
+<h2>
+  Symptom report setup
+</h2>
+
+<p>
+  You can customize your symptom tracking by using another report setup – or by creating your
+  own.
+</p>
+
+{# CURRENT SETUP #}
+{% with current_setup as report_setup %}
+<h3 class="text-muted">
+  <small>Current setup</small>
+</h3>
+<div class="p-4 border rounded mb-3"
+    style="border-color:rgba(0,0,0,.125)" {# override to match accordion #}
+    >
+  {% include 'reports/partials/setup_details.html' %}
+</div>
+
+{# Notice for an editable private setup. #}
+{% if not report_setup.public and report_setup.owner == request.user.openhumansmember.account %}
+<div class="alert alert-primary" role="alert">
+  <b>This is a private setup you've created.</b> You can still
+  <a href="{% url 'reports:update-setup' report_setup.id %}">modify this setup</a>,
+  or <a href="#">publish it for others to use</a>.
+</div>
+{% endif %}
+
+{% endwith %}
+
+{# OTHER AVAILABLE SETUPS #}
+<h3 class="mt-4">Other available setups</h3>
+
+<p>
+  Click on a setup to view information about using it.
+</p>
+
 <div class="accordion" id="report_setup_accordion">
-  <div class="card">
-    <div class="card-header">
-      <h2 class="mb-0">
-        Current survey setup
-      </h2>
-    </div>
-  </div>
-  {% with report_setups.current as report_setup %}
-  {% include 'reports/partials/setup_details.html' with current=True %}
-  {% endwith %}
 
-  {% if report_setups.own %}
-  <div class="card">
-    <div class="card-header">
-      <h2 class="mb-0">
-        Your setups
-      </h2>
-    </div>
-  </div>
-  {% for report_setup in report_setups.own %}
-    {% include 'reports/partials/setup_details.html' %}
-  {% endfor %}
-  {% endif %}
+  {% for report_setup in other_available_setups %}
 
-  {% if report_setups.public %}
   <div class="card">
-    <div class="card-header">
-      <h2 class="mb-0">
-        Other available setups
-      </h2>
+
+    {# Survey setup header #}
+    <div class="card-header pl-0" id="report_setup_selection_{{report_setup.id}}">
+      <div class="custom-control custom-radio">
+        <h4 class="text-muted"><small><a href="#" class="accordion-toggle collapsed"
+            for="id_report_setup_{{ report_setup.id }}"
+            data-toggle="collapse" data-target="#collapse_report_setup_{{ report_setup.id }}"
+            aria-expanded="false"
+            aria-controls="collapse_report_setup_{{report_setup.id}}">
+            {{ report_setup.title }}</a>
+            {% if report_setup.owner == request.user.openhumansmember.account %}({% if report_setup.public %}published, {% else %}editable, {% endif %}created by you){% endif %}
+        </small></h4>
+      </div>
+    </div>
+
+    <div id="collapse_report_setup_{{ report_setup.id }}"
+        class="collapse{% if current %} show{% endif %}"
+        aria-labelledby="report_setup_selection_{{report_setups.current.id}}"
+        data-parent="#report_setup_accordion">
+      <div class="card-body">
+
+        {% include 'reports/partials/setup_details.html' %}
+
+        <form class="form-inline" method="POST" action="{% url 'reports:report-setup' %}">
+          {% csrf_token %}
+          <input type="hidden" name="report_setup" value="{{ report_setup.id }}">
+          <button type="submit" class="btn btn-primary btn-sm mb-2">Switch to this setup</button>
+        </form>
+
+        {% if report_setup.owner == request.user.openhumansmember.account %}
+          <a href="{% url 'reports:update-setup' report_setup.id %}" class="btn btn-primary btn-sm">Edit</a>
+
+          {# only offer setup deletion if not in use! #}
+          {% if report_setup.use_count == 0 %}
+          <form class="form-inline" style="display:inline-block" method="POST"
+              action="{% url 'reports:delete-setup' report_setup.id %}">
+            {% csrf_token %}
+            <input class="btn btn-danger btn-sm" type="submit" value="Delete setup">
+          </form>
+          {% endif %}
+        {% endif %}
+
+      </div>
     </div>
   </div>
-  {% for report_setup in report_setups.public %}
-    {% include 'reports/partials/setup_details.html' %}
   {% endfor %}
-  {% endif %}
+
 </div>
 
 <h3 class="mt-4">Create a custom setup</h3>
@@ -65,20 +120,37 @@
   setup to customize it for your own needs.
 </p>
 
-<form class="form" style="display:inline-block" method="POST"
+<form class="form mb-2" id="form-customize-report-setup" style="display:inline-block" method="POST"
     action="{% url 'reports:create-custom-setup' %}">
   {% csrf_token %}
   <input type="hidden" name="from_setup" value="{{ report_setup.id }}">
-  <select name="from_setup" class="form-control form-control-sm">
-    <option value="{{ report_setups.current.id }}">{{ report_setups.current.title }} (current setup)</option>
-    {% for report_setup in report_setups.own %}
-    <option value="{{ report_setup.id }}">{{ report_setup.title }} (created by you)</option>
-    {% endfor %}
-    {% for report_setup in report_setups.public %}
-    <option value="{{ report_setup.id }}">{{ report_setup.title }}</option>
+  <select name="from_setup" id="select-customize-report-setup" class="form-control form-control-sm">
+    <option value="{{ current_setup.id }}" selected>{{ current_setup.title }} (current setup)</option>
+    {% for report_setup in other_available_setups %}
+    <option value="{{ report_setup.id }}">{{ report_setup.title }}
+      {% if report_setup.owner == request.user.openhumansmember.account %}
+        {% if report_setup.public %}
+          (published, created by you)
+        {% else %}
+          (created by you)
+        {% endif %}
+      {% endif %}
+    </option>
     {% endfor %}
   </select>
-  <input class="btn btn-primary btn-sm mt-2" type="submit" value="Copy and customize">
 </form>
+<div class="p-4 border rounded mb-2"
+    style="border-color:rgba(0,0,0,.125)"> {# override to match accordion #}
+  <div class="info-customize-report-setup" id="info-customize-report-setup-{{ current_setup.id }}">
+    {% include 'reports/partials/setup_details.html' with report_setup=current_setup %}
+  </div>
+  {% for report_setup in other_available_setups %}
+  <div class="info-customize-report-setup" id="info-customize-report-setup-{{ report_setup.id }}" class="d-none">
+    {% include 'reports/partials/setup_details.html' %}
+  </div>
+  {% endfor %}
+</div>
+<input form="form-customize-report-setup" class="btn btn-primary btn-sm" type="submit" value="Copy and customize">
+
 
 {% endblock main %}

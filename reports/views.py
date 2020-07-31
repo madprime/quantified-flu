@@ -32,6 +32,7 @@ from .forms import SelectReportSetupForm, SymptomReportForm, ReportSetupForm
 from .models import (
     SYMPTOM_INTENSITY_CHOICES,
     SymptomCategory,
+    Symptom,
     SymptomReport,
     ReportSetup,
     ReportSetupSymptomItem,
@@ -292,20 +293,19 @@ class ReportSetupView(LoginRequiredMixin, UpdateView):
         """
         context = super().get_context_data(*args, **kwargs)
         setup_qs = context["form"].fields["report_setup"]._queryset
-        setups = {}
         try:
-            setups["current"] = setup_qs.get(id=self.account.report_setup.id)
+            context["current_setup"] = setup_qs.get(id=self.account.report_setup.id)
         except ReportSetup.DoesNotExist:
             pass
-        setups["own"] = setup_qs.filter(owner=self.account).exclude(
-            id=self.account.report_setup.id
+        other_setups = list(
+            setup_qs.filter(owner=self.account).exclude(id=self.account.report_setup.id)
         )
-        setups["public"] = (
+        other_setups += list(
             setup_qs.filter(public=True)
+            .exclude(owner=self.account)
             .exclude(id=self.account.report_setup.id)
-            .exclude(id__in=setups["own"])
         )
-        context["report_setups"] = setups
+        context["other_available_setups"] = other_setups
         return context
 
 
@@ -399,6 +399,22 @@ class UpdateReportSetupView(LoginRequiredMixin, UpdateView):
     form_class = ReportSetupForm
     success_url = reverse_lazy("reports:report-setup")
 
+    def get_available_symptom_additions(self):
+        curr_symptoms = Symptom.objects.filter(
+            reportsetupsymptomitem__in=self.object.get_symptom_items()
+        )
+        all_available = Symptom.objects.filter(available=True).exclude(
+            id__in=curr_symptoms
+        )
+        available_symptoms = {
+            cat.name: all_available.filter(category=cat)
+            for cat in self.object.get_categories()
+        }
+        available_symptoms["other"] = all_available.exclude(
+            category__in=self.object.get_categories()
+        )
+        return available_symptoms
+
     def get_initial(self):
         initial = super().get_initial()
         allowed_categories = self.object.get_categories()
@@ -410,6 +426,11 @@ class UpdateReportSetupView(LoginRequiredMixin, UpdateView):
                 continue
         initial["category_ordering"] = ",".join(cat_names)
         return initial
+
+    def get_context_data(self, *args, **kwargs):
+        context = super().get_context_data(*args, **kwargs)
+        context["available_symptoms"] = self.get_available_symptom_additions()
+        return context
 
 
 """

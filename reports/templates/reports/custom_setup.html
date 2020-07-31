@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block main %}
+<script src="{% static 'js/update_report_setup.js' %}" ></script>
+
+<form class="mb-4" id="form-update-setup" method="POST" action="{% url 'reports:update-setup' object.id %}">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="fieldWrapper">
+      {{ form.title.errors }}
+      <label for="{{ form.title.id_for_label }}">Title:</label>
+      {{ form.title }}
+  </div>
+  <div class="fieldWrapper">
+      {{ form.description.errors }}
+      <label for="{{ form.description.id_for_label }}">Description:</label>
+      {{ form.description }}
+  </div>
+  <div class="fieldWrapper">
+      {{ form.category_ordering.errors }}
+      <label for="{{ form.category_ordering.id_for_label }}">Category ordering:</label>
+      {{ form.category_ordering }}
+  </div>
+</form>
+
+{% for cat_set in object.display_format %}
+  {% if cat_set.symptoms %}
+  <div id="setup-symptom-category-{{cat_set.category}}">
+    <h3>{{ cat_set.category }}</h3>
+    <table class="table table-sm table-hover">
+      {% for symptom_item in cat_set.symptoms %}
+      <tr id="tr-setup-symptom-item-{{ symptom_item.id }}">
+        <th>{{ symptom_item.symptom.verbose }}</th>
+        <td>
+          <form method="POST" id="form-delete-setup-symptom-{{ symptom_item.id}}"
+              action="{% url 'reports:delete-setup-symptom' symptom_item.id %}">
+            {% csrf_token %}
+
+            {# JavaScript overrides behavior on click to submit this form via AJAX and remove the element. #}
+            <input type="submit" class="btn btn-danger btn-sm delete-setup-symptom float-right mr-5"
+              id="btn-delete-setup-symptom-item-{{ symptom_item.id }}"
+              value="Remove">
+
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+  {% for catname, symptoms in available_symptoms.items %}
+    {% if catname == cat_set.category.name %}
+      {% for symptom in symptoms %}
+      <p>{{ symptom.verbose }}</p>
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+{% for symptom in available_symptoms.other %}
+<p>{{ symptom.verbose }} (Category: {{ symptom.category.name }})</p>
+{% endfor %}
+
+<input form="form-update-setup" class="btn btn-primary" type="submit" value="Update">
+
+
+{% endblock main %}

@@ -1,53 +1,42 @@
-<div class="card">
-  <div class="card-header" id="report_setup_selection_{{report_setups.current.id}}">
-    <div class="custom-control custom-radio">
-      <a href="#" class="accordion-toggle{% if not current %} collapsed{% endif %}"
-          for="id_report_setup_{{ report_setup.id }}"
-          data-toggle="collapse" data-target="#collapse_report_setup_{{ report_setup.id }}"
-          aria-expanded="{% if current %}true{% else %}false{% endif %}"
-          aria-controls="collapse_report_setup_{{report_setup.id}}">
-          {{ report_setup.title }}
-      </a>
-    </div>
-  </div>
-  <div id="collapse_report_setup_{{ report_setup.id }}"
-      class="collapse{% if current %} show{% endif %}"
-      aria-labelledby="report_setup_selection_{{report_setups.current.id}}"
-      data-parent="#report_setup_accordion">
-    <div class="card-body">
-      <p>
-        <b>Description: </b> {{ report_setup.description }}
-      </p>
-      <hr>
-      {% for section in report_setup.display_format %}
-      {% if section.symptoms %}
-      <p>
-        <b>{{section.category}}:</b>
-        {% for symptom_item in section.symptoms %}{{ symptom_item.symptom.verbose }}{% if not forloop.last %}, {% endif %}{% endfor %}
-      </p>
-      {% endif %}
-      {% endfor %}
+<h4>{{ report_setup.title }}</h4>
 
-      {% if not current %}
-      <form class="form-inline" method="POST" action="{% url 'reports:report-setup' %}">
-        {% csrf_token %}
-        <input type="hidden" name="report_setup" value="{{ report_setup.id }}">
-        <button type="submit" class="btn btn-primary btn-sm mb-2">Switch to this setup</button>
-      </form>
-      {% endif %}
-
-      {% if report_setup.owner == request.user.openhumansmember.account %}
-        <a href="{% url 'reports:update-setup' report_setup.id %}" class="btn btn-primary btn-sm">Edit</a>
-
-        {# only offer setup deletion if not in use! #}
-        {% if report_setup.use_count == 0 %}
-        <form class="form-inline" style="display:inline-block" method="POST"
-            action="{% url 'reports:delete-setup' report_setup.id %}">
-          {% csrf_token %}
-          <input class="btn btn-danger btn-sm" type="submit" value="Delete setup">
-        </form>
-        {% endif %}
-      {% endif %}
-    </div>
-  </div>
+{% if report_setup.description %}
+<div class="text-muted border-bottom border-light">
+  <small>Description</small>
 </div>
+<div class="p-2">
+  {{ report_setup.description }}
+</div>
+{% endif %}
+
+<div class="text-muted border-bottom border-light">
+  <small>Symptoms</small>
+</div>
+<div class="container p-2">
+  {% for section in report_setup.display_format %}
+  {% if section.symptoms %}
+  <div class="row {% if not forloop.first %}pt-2 border-top border-light {% endif %}">
+    <div class="col-4"><b>{{ section.category}}</b></div>
+    <div class="col-8">
+      <ul>
+        {% for symptom_item in section.symptoms %}
+        <li>{{ symptom_item.symptom.verbose }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+{% comment %}
+{% for section in report_setup.display_format %}
+{% if section.symptoms %}
+<p>
+  <b>{{section.category}}:</b>
+  {% for symptom_item in section.symptoms %}{{ symptom_item.symptom.verbose }}{% if not forloop.last %}, {% endif %}{% endfor %}
+</p>
+{% endif %}
+{% endfor %}
+{% endcomment %}
+

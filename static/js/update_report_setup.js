@@ -9,7 +9,7 @@ $(document).ready(function() {
 
         var symptom_item_id = this.id.split("-")[this.id.split("-").length - 1];
         var form_id = '#form-delete-setup-symptom-' + symptom_item_id;
-        var li_item_id = '#li-setup-symptom-item-' + symptom_item_id;
+        var li_item_id = '#tr-setup-symptom-item-' + symptom_item_id;
         $(form_id).onsubmit = function(event) {
             event.preventDefault();
             return false;
