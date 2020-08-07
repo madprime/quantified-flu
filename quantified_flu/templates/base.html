@@ -84,6 +84,9 @@
     <main role="main" class="flex-shrink-0" style="padding-top:60px">
       <div class="container">
 
+        {% block breadcrumbs %}
+        {% endblock breadcrumbs %}
+
         {% block messages_block %}
           {% if messages %}
             <div class="mt-2">

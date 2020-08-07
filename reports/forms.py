@@ -78,14 +78,46 @@ class SelectReportSetupForm(forms.ModelForm):
 
 
 class ReportSetupForm(forms.ModelForm):
-    category_ordering = forms.CharField()
-
     class Meta:
         model = ReportSetup
-        fields = ["title", "description"]
+        fields = ["title", "description", "category_ordering"]
 
     def __init__(self, *args, **kwargs):
+        """
+        Add custom fields for selecting category ordering.
+        """
         super().__init__(*args, **kwargs)
+        categories = self.instance.get_categories()
+        for i in range(categories.count()):
+            field_name = "select_ordering_{}".format(i)
+            self.fields[field_name] = forms.ModelChoiceField(categories, required=False)
+
+    def clean(self):
+        """
+        Use custom fields to create category ordering field.
+        """
+        super().clean()
+        cat_order_keys = sorted(
+            [x for x in self.cleaned_data.keys() if x.startswith("select_ordering_")],
+            key=lambda k: int(k.split("_")[-1]),
+        )
+        # If this part of the form was skipped, retain the current category_ordering.
+        if not any([self.cleaned_data[key] for key in cat_order_keys]):
+            self.cleaned_data["category_ordering"] = self.instance.category_ordering
+            return
+        cat_order_list = []
+        for key in cat_order_keys:
+            if self.cleaned_data[key].id not in cat_order_list:
+                cat_order_list.append(self.cleaned_data[key].id)
+            else:
+                msg = (
+                    'The category "{}"'.format(self.cleaned_data[key].name)
+                    + " is entered more than once in the category ordering!"
+                )
+                raise ValidationError(msg)
+        self.cleaned_data["category_ordering"] = ",".join(
+            [str(x) for x in cat_order_list]
+        )
 
 
 """

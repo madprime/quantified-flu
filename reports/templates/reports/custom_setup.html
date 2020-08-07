@@ -1,44 +1,80 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load humanize %}
+
+{% block breadcrumbs %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'manage-account' %}">Account</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'reports:report-setup' %}">Report setup</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Edit "{{ form.instance.title }}"</li>
+  </ol>
+</nav>
+{% endblock breadcrumbs %}
 
 {% block main %}
 <script src="{% static 'js/update_report_setup.js' %}" ></script>
 
-<form class="mb-4" id="form-update-setup" method="POST" action="{% url 'reports:update-setup' object.id %}">
+<h2>Edit report setup</h2>
+
+<p>
+  Use these forms to modify a "setup", i.e. which symptoms you track when you check in.
+</p>
+
+<h3>Edit information & category ordering</h3>
+
+{{ form.errors }}
+<form class="mb-5" method="POST" action="{% url 'reports:update-setup' object.id %}">
   {% csrf_token %}
   {{ form.non_field_errors }}
-  <div class="fieldWrapper">
-      {{ form.title.errors }}
-      <label for="{{ form.title.id_for_label }}">Title:</label>
-      {{ form.title }}
+  {{ form.title.errors }}
+  <div class="form-group">
+    <label for="{{ form.title.id_for_label }}">Title</label>
+    <input type="text" class="form-control" id="{{ form.title.id_for_label}}"
+      name="{{ form.title.html_name }}" value="{{ form.title.value }}"
+      maxlength="{{ form.title.field.max_length }}" required>
   </div>
-  <div class="fieldWrapper">
-      {{ form.description.errors }}
-      <label for="{{ form.description.id_for_label }}">Description:</label>
-      {{ form.description }}
+  {{ form.description.errors }}
+  <div class="form-group">
+    <label for="{{ form.description.id_for_label }}">Description</label>
+    <textarea class="form-control" id="{{ form.description.id_for_label }}"
+      name="{{ form.description.html_name }}" rows="3">{{ form.description.value }}</textarea>
   </div>
-  <div class="fieldWrapper">
-      {{ form.category_ordering.errors }}
-      <label for="{{ form.category_ordering.id_for_label }}">Category ordering:</label>
-      {{ form.category_ordering }}
+  <div class="form-row" id="form-row-category-ordering">
+    {% for place, current_cat in category_ordering %}
+    <div class="form-group col-md-4">
+      <label for="id_select_ordering_{{ place }}">{{ place|add:"1"|ordinal }} category:</label>
+      <select class="form-control" name="select_ordering_{{place}}" id="id_select_ordering_{{place}}">
+        {% for category in categories %}
+        <option value="{{ category.id }}" {% if category == current_cat %}selected{% endif %}>{{ category.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endfor %}
   </div>
+  <input class="btn btn-primary" type="submit" value="Update information &amp; category ordering">
 </form>
 
+<h3 class="border-bottom mb-4">Edit symptom list</h3>
+
+<div id="edit-symptom-categories">
 {% for cat_set in object.display_format %}
   {% if cat_set.symptoms %}
   <div id="setup-symptom-category-{{cat_set.category}}">
-    <h3>{{ cat_set.category }}</h3>
-    <table class="table table-sm table-hover">
+    <h4><span class="text-muted">Category: </span>{{ cat_set.category }}</h4>
+    <table class="table table-sm table-hover" id="symptom-items-{{ cat_set.category }}"><tbody>
       {% for symptom_item in cat_set.symptoms %}
       <tr id="tr-setup-symptom-item-{{ symptom_item.id }}">
-        <th>{{ symptom_item.symptom.verbose }}</th>
-        <td>
-          <form method="POST" id="form-delete-setup-symptom-{{ symptom_item.id}}"
+        <td {% if forloop.first %}class="border-top-0"{% endif %}>{{ symptom_item.symptom.verbose }}</td>
+        <td {% if forloop.first %}class="border-top-0"{% endif %}>
+
+          {# deletion of symptom items from setup #}
+          <form method="POST" class="form-delete-symptom-item" id="form-delete-setup-symptom-{{ symptom_item.id}}"
               action="{% url 'reports:delete-setup-symptom' symptom_item.id %}">
             {% csrf_token %}
 
             {# JavaScript overrides behavior on click to submit this form via AJAX and remove the element. #}
-            <input type="submit" class="btn btn-danger btn-sm delete-setup-symptom float-right mr-5"
+            <input type="submit" class="btn btn-danger btn-sm delete-setup-symptom float-right py-0 mr-5"
               id="btn-delete-setup-symptom-item-{{ symptom_item.id }}"
               value="Remove">
 
@@ -46,23 +82,32 @@
         </td>
       </tr>
       {% endfor %}
-    </table>
+    </tbody></table>
   </div>
   {% endif %}
-  {% for catname, symptoms in available_symptoms.items %}
-    {% if catname == cat_set.category.name %}
-      {% for symptom in symptoms %}
-      <p>{{ symptom.verbose }}</p>
-      {% endfor %}
-    {% endif %}
-  {% endfor %}
 {% endfor %}
+</div>
 
-{% for symptom in available_symptoms.other %}
-<p>{{ symptom.verbose }} (Category: {{ symptom.category.name }})</p>
-{% endfor %}
 
-<input form="form-update-setup" class="btn btn-primary" type="submit" value="Update">
+{# add new symptoms to report setup #}
+<h4>Add symptoms</h4>
+<form class="form mb-2" class="form-create-setup-symptom" style="display:inline-block" method="POST"
+    id="form-create-setup-symptom"
+    action="{% url 'reports:create-setup-symptom' %}">
+  {% csrf_token %}
+  <input type="hidden" name="report_setup" value="{{ object.id }}">
+  <select name="symptom" class="form-control form-control-sm">
+    <option selected disabled>----- Select option -----</option>
+    {% for symptom in available_symptoms %}
+    <option id="option-add-setup-symptom-{{ symptom.id }}" value="{{ symptom.id }}">{{ symptom.verbose }}
+      ({% if symptom.category %}{{ symptom.category.name }}{% else %}Uncategorized{% endif %})</option>
+    {% endfor %}
+  </select>
 
+  {# JavaScript overrides behavior on click to submit this form via AJAX and update the page. #}
+  <input type="submit" class="btn btn-primary btn-sm create-setup-symptom"
+    id="btn-create-setup-symptom-{{ catname }}"
+    value="Add">
+</form>
 
 {% endblock main %}

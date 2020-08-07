@@ -10,6 +10,7 @@ from .views import (
     create_custom_setup,
     DeleteReportSetupView,
     UpdateReportSetupView,
+    CreateReportSetupSymptomView,
     DeleteReportSetupSymptomView,
 )  # TODO: add ReportDiagnosisView
 
@@ -47,13 +48,23 @@ urlpatterns = [
     path(
         "update-setup/<setup_id>", UpdateReportSetupView.as_view(), name="update-setup"
     ),
+    # AJAX symptom items for custom reprots
     path(
-        "delete-setup-symptom/<symptom_item_id>",
-        DeleteReportSetupSymptomView.as_view(),
-        name="delete-setup-symptom",
+        "ajax/create-setup-symptom", CreateReportSetupSymptomView.as_view(as_json=True)
     ),
     path(
         "ajax/delete-setup-symptom/<symptom_item_id>",
         DeleteReportSetupSymptomView.as_view(as_json=True),
+    ),
+    # fallback for AJAX not working (not expected to be used)
+    path(
+        "create-setup-symptom",
+        CreateReportSetupSymptomView.as_view(),
+        name="create-setup-symptom",
+    ),
+    path(
+        "delete-setup-symptom/<symptom_item_id>",
+        DeleteReportSetupSymptomView.as_view(),
+        name="delete-setup-symptom",
     ),
 ]

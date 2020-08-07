@@ -1,6 +1,15 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block breadcrumbs %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'manage-account' %}">Account</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Report setup</li>
+  </ol>
+</nav>
+{% endblock %}
+
 {% block main %}
 <script src="{% static 'js/select_report_setup.js' %}" ></script>
 

@@ -358,6 +358,39 @@ class DeleteReportSetupView(LoginRequiredMixin, DeleteView):
             raise PermissionDenied
 
 
+class CreateReportSetupSymptomView(LoginRequiredMixin, CreateView):
+    login_url = "/"
+    model = ReportSetupSymptomItem
+    pk_url_kwarg = "symptom_id"
+    fields = ["report_setup", "symptom"]
+    template = None
+    as_json = False
+
+    def get_success_url(self):
+        return reverse("reports:update-setup", args=(self.object.report_setup.id,))
+
+    def form_valid(self, form):
+        """
+        Override to provide JSON response for AJAX additions.
+        """
+        default_return = super().form_valid(form)
+        if self.as_json:
+            data = {
+                "new_category": False,
+                "symptom_id": self.object.symptom.id,
+                "symptom_item_id": self.object.id,
+                "symptom_item_verbose": self.object.symptom.verbose,
+                "symptom_item_category": self.object.symptom.category.name,
+            }
+            num_in_cat = self.object.report_setup.reportsetupsymptomitem_set.filter(
+                symptom__category=self.object.symptom.category
+            ).count()
+            if num_in_cat == 1:
+                data["new_category"] = True
+            return JsonResponse(data)
+        return default_return
+
+
 class DeleteReportSetupSymptomView(LoginRequiredMixin, DeleteView):
     login_url = "/"
     model = ReportSetupSymptomItem
@@ -365,25 +398,44 @@ class DeleteReportSetupSymptomView(LoginRequiredMixin, DeleteView):
     as_json = False
 
     def get_queryset(self):
+        """
+        Override to ensure that only allowed items can be deleted.
+        """
         return ReportSetupSymptomItem.objects.filter(
             report_setup__owner=self.request.user.openhumansmember.account
-        )
+        ).filter(report_setup__public=False)
 
     def delete(self, request, *args, **kwargs):
+        """
+        Override to add JSON data return for AJAX deletion.
+        """
         self.request = request
         self.object = self.get_object()
 
-        category = self.object.symptom.category if self.as_json else None
+        symptom = self.object.symptom
         setup = self.object.report_setup if self.as_json else None
 
         default_return = super().delete(self, request, *args, **kwargs)
         if self.as_json:
             del_cat = None
-            if not setup.reportsetupsymptomitem_set.filter(
-                symptom__category=category
-            ).exists():
-                del_cat = category.name
-            return JsonResponse({"delete_category": del_cat})
+            category_name = (
+                symptom.category.name if symptom.category else "Uncategorized"
+            )
+            if (
+                symptom.category
+                and not setup.reportsetupsymptomitem_set.filter(
+                    symptom__category=symptom.category
+                ).exists()
+            ):
+                del_cat = symptom.category.name
+            return JsonResponse(
+                {
+                    "delete_category": del_cat,
+                    "category_name": category_name,
+                    "symptom_id": symptom.id,
+                    "symptom_verbose": symptom.verbose,
+                }
+            )
 
         return default_return
 
@@ -397,39 +449,38 @@ class UpdateReportSetupView(LoginRequiredMixin, UpdateView):
     model = ReportSetup
     pk_url_kwarg = "setup_id"
     form_class = ReportSetupForm
-    success_url = reverse_lazy("reports:report-setup")
 
     def get_available_symptom_additions(self):
         curr_symptoms = Symptom.objects.filter(
             reportsetupsymptomitem__in=self.object.get_symptom_items()
         )
-        all_available = Symptom.objects.filter(available=True).exclude(
-            id__in=curr_symptoms
+        all_available = (
+            Symptom.objects.filter(available=True)
+            .exclude(id__in=curr_symptoms)
+            .order_by("verbose")
         )
-        available_symptoms = {
-            cat.name: all_available.filter(category=cat)
-            for cat in self.object.get_categories()
-        }
-        available_symptoms["other"] = all_available.exclude(
-            category__in=self.object.get_categories()
-        )
-        return available_symptoms
+        return all_available
 
-    def get_initial(self):
-        initial = super().get_initial()
-        allowed_categories = self.object.get_categories()
-        cat_names = []
-        for cat_id in self.object.category_ordering.split(","):
-            try:
-                cat_names.append(allowed_categories.get(id=cat_id).name)
-            except SymptomCategory.DoesNotExist:
-                continue
-        initial["category_ordering"] = ",".join(cat_names)
-        return initial
+    def get_success_url(self):
+        """
+        Reload form on success.
+        """
+        return reverse("reports:update-setup", args=(self.object.id,))
 
     def get_context_data(self, *args, **kwargs):
+        """
+        Add available symptoms, categories, and category ordering to template context.
+        """
         context = super().get_context_data(*args, **kwargs)
         context["available_symptoms"] = self.get_available_symptom_additions()
+        context["category_ordering"] = enumerate(
+            self.object.sort_category_items(
+                categoryitem_queryset=self.object.get_categories(),
+                category_ordering=self.object.category_ordering,
+            )
+        )
+        context["categories"] = self.object.get_categories().order_by("name")
+
         return context
 
 
