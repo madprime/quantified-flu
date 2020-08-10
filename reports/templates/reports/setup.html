@@ -35,14 +35,14 @@
   Symptom report setup
 </h2>
 
-<p>
+<div class="mb-1">
   You can customize your symptom tracking by using another report setup – or by creating your
   own.
-</p>
+</div>
 
 {# CURRENT SETUP #}
 {% with current_setup as report_setup %}
-<h3 class="text-muted">
+<h3 class="text-muted mb-1">
   <small>Current setup</small>
 </h3>
 <div class="p-4 border rounded mb-3"
@@ -50,15 +50,6 @@
     >
   {% include 'reports/partials/setup_details.html' %}
 </div>
-
-{# Notice for an editable private setup. #}
-{% if not report_setup.public and report_setup.owner == request.user.openhumansmember.account %}
-<div class="alert alert-primary" role="alert">
-  <b>This is a private setup you've created.</b> You can still
-  <a href="{% url 'reports:update-setup' report_setup.id %}">modify this setup</a>,
-  or <a href="#">publish it for others to use</a>.
-</div>
-{% endif %}
 
 {% endwith %}
 
@@ -97,25 +88,6 @@
 
         {% include 'reports/partials/setup_details.html' %}
 
-        <form class="form-inline" method="POST" action="{% url 'reports:report-setup' %}">
-          {% csrf_token %}
-          <input type="hidden" name="report_setup" value="{{ report_setup.id }}">
-          <button type="submit" class="btn btn-primary btn-sm mb-2">Switch to this setup</button>
-        </form>
-
-        {% if report_setup.owner == request.user.openhumansmember.account %}
-          <a href="{% url 'reports:update-setup' report_setup.id %}" class="btn btn-primary btn-sm">Edit</a>
-
-          {# only offer setup deletion if not in use! #}
-          {% if report_setup.use_count == 0 %}
-          <form class="form-inline" style="display:inline-block" method="POST"
-              action="{% url 'reports:delete-setup' report_setup.id %}">
-            {% csrf_token %}
-            <input class="btn btn-danger btn-sm" type="submit" value="Delete setup">
-          </form>
-          {% endif %}
-        {% endif %}
-
       </div>
     </div>
   </div>
@@ -151,15 +123,14 @@
 <div class="p-4 border rounded mb-2"
     style="border-color:rgba(0,0,0,.125)"> {# override to match accordion #}
   <div class="info-customize-report-setup" id="info-customize-report-setup-{{ current_setup.id }}">
-    {% include 'reports/partials/setup_details.html' with report_setup=current_setup %}
+    {% include 'reports/partials/setup_details.html' with report_setup=current_setup copy=True %}
   </div>
   {% for report_setup in other_available_setups %}
   <div class="info-customize-report-setup" id="info-customize-report-setup-{{ report_setup.id }}" class="d-none">
-    {% include 'reports/partials/setup_details.html' %}
+    {% include 'reports/partials/setup_details.html' with copy=True %}
   </div>
   {% endfor %}
 </div>
-<input form="form-customize-report-setup" class="btn btn-primary btn-sm" type="submit" value="Copy and customize">
 
 
 {% endblock main %}

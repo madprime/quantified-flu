@@ -96,18 +96,35 @@
     action="{% url 'reports:create-setup-symptom' %}">
   {% csrf_token %}
   <input type="hidden" name="report_setup" value="{{ object.id }}">
-  <select name="symptom" class="form-control form-control-sm">
-    <option selected disabled>----- Select option -----</option>
-    {% for symptom in available_symptoms %}
-    <option id="option-add-setup-symptom-{{ symptom.id }}" value="{{ symptom.id }}">{{ symptom.verbose }}
-      ({% if symptom.category %}{{ symptom.category.name }}{% else %}Uncategorized{% endif %})</option>
-    {% endfor %}
-  </select>
+  <div class="form-row">
+    <div class="form-group col-md-6">
+      <label for="select-filter-available-symptom-category">Category</label>
+      <select id="select-filter-available-symptom-category" class="form-control">
+        <option value="0" selected>Any</option>
+        {% for category in categories %}
+        <option value="{{ category.id }}">{{ category.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group col-md-6">
+      <label for="select-add-available-symptom">Symptom</label>
+      <select name="symptom" class="form-control" id="select-add-available-symptom">
+        <option selected disabled>----- Select option -----</option>
+        {% for symptom in available_symptoms %}
+        <option id="option-add-setup-symptom-{{ symptom.id }}" value="{{ symptom.id }}">{{ symptom.verbose }}
+          ({% if symptom.category %}{{ symptom.category.name }}{% else %}Uncategorized{% endif %})</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
 
   {# JavaScript overrides behavior on click to submit this form via AJAX and update the page. #}
-  <input type="submit" class="btn btn-primary btn-sm create-setup-symptom"
+  <input type="submit" class="btn btn-primary create-setup-symptom"
     id="btn-create-setup-symptom-{{ catname }}"
-    value="Add">
+    value="Add symptom to report setup">
 </form>
 
+<p>
+  Don't see a symptom you want to track? You can <a href="#">register a new symptom</a>.
+</p>
 {% endblock main %}
